@@ -1,0 +1,145 @@
+{
+    name: surveyStick
+    fnUi: {
+        include: [cv]
+        makeHsvMask: {
+            ui: {
+                isOn: { type: checkbox default: false }
+                hMin: { type: trackbar min: 0 max: 179 default: 0 }
+                hMax: { type: trackbar min: 0 max: 179 default: 179 }
+                sMin: { type: trackbar min: 0 max: 255 default: 0 }
+                sMax: { type: trackbar min: 0 max: 255 default: 255 }
+                vMin: { type: trackbar min: 0 max: 255 default: 0 }
+                vMax: { type: trackbar min: 0 max: 255 default: 255 }
+            }
+        }
+        //# in cv.fnUi: all the cv stuff
+        gaussianBlur: {
+            ui: {
+                ksizeX: { type: trackbar min: 1 max: 25 step: 2 default: 5 }
+                ksizeY: { type: trackbar min: 1 max: 25 step: 2 default: 5 }
+                sigmaX: { type: trackbar min: 0 max: 255 default: 0 }
+                sigmaY: { type: trackbar min: 0 max: 255 default: 0 }
+                borderType: { 
+                    type: select 
+                    options: [constant, replicate, reflect, relfect_101, transparent, isolated]
+                    default: reflect_101
+                }
+            }
+        }
+        canny: {
+            ui: {
+                minVal: { type: trackbar min: 0 max: 255 default: 0 }
+                maxVal: { type: trackbar min: 0 max: 255 default: 0 }
+                apertureSize: { type: trackbar min: 0 max: 255 default: 25 }
+                l2Gradient: { type: checkbox default: false }
+            }
+        }
+        findContours: {
+            ui: {
+                contourMode: { 
+                    type: select
+                    options: [external list ccomp tree floodfill]
+                    default: external
+                }
+                contourMethod: { 
+                    type: select 
+                    options: [none simple tc89_l1 tc89_kcos]
+                    default: none
+                }
+                contourOffset: { type: trackbar min: 0 max: 255 default: 0 }
+            }
+        }
+        //# Defined locally
+        findCircles: {
+            ui: {
+                partialCircleThreshold: { type: trackbar min: 0.0 max: 1.0 step: 0.01 default: 0.9 }
+            }
+        }
+    }
+
+    opsGraph: { //# TODO: a plethora of graphs?
+        ops: { 
+            getVideo: {
+                fn: getFrame
+                in: float.mp4 //# or videoCapture(n)
+                out: videoFrame
+            }
+            resizeInput: {
+                fn: resize
+                in: videoFrame
+                out: resizeFrame
+            }
+            toHsv: {
+                fn: toHsv
+                in: resizeFrame
+                out: hsvFrame
+            }
+            channels: {
+                collection: {
+                    minNum: 1
+                    maxNum: 10
+                    selectMode: one
+                }
+                ops: { 
+                    makeHsvMask: {
+                        fn: makeHsvMask
+                        in: hsvFrame
+                        out: hsvMask
+                    }
+                    filterHsvMask: {
+                        fn: bitwiseAnd
+                        in: [hsvFrame hsvFrame hsvMask]
+                        out: hsvFilteredFrame
+                    }
+                    blur: {
+                        fn: gaussianBlur
+                        in: hsvFilteredFrame
+                        out: blurredFilteredFrame
+                    }
+                    canny: {
+                        fn: canny
+                        in: blurredFilteredFrame
+                        out: edges
+                    }
+                    findContours: {
+                        fn: findContours
+                        in: edges
+                        outData: contourData
+                    }
+                    findCircles: {
+                        fn: getCircles
+                        inData: contourData
+                        outData: circleData
+                    }
+                    drawChannelHud: {
+                        in: hsvFilteredFrame
+                        inData: circleData
+                        out: finalChannel
+                    }
+                }
+            }
+            addChannels: {
+                fn: add
+                in: channels.hsvFilteredFrame
+                out: hsvFilteredSum
+            }
+            drawHud: {
+                fn: drawHud
+                in: hsvFilteredSum
+                inData: channels.circleData
+                out: finalFrame
+            }
+        }
+    }
+
+    views: {
+        main: {
+            imageLayout: [[finalFrame]]
+        }
+        editHsvChannel: {
+            select: { index: channel from: channels }
+            imageLayout: [[resizeFrame channel.finalChannel]]
+        }
+    } 
+}
